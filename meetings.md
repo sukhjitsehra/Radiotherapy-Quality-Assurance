@@ -1,11 +1,12 @@
 # Meeting Minutes
-## Meeting Information
-**Meeting Date/Time:** meeting_date, meeting_time  
-## Action Items due be due_date and allocation to responsible_name.
+## Meeting Date/Time: Jan 15, 2025  
+[X] Setup the System for Faith
 
-[X] Action Item 1
+[X] Read the Papers to find out the EDA other than 3 parameters that we can plan for visualization discussion
 
-[X] Action Item 2:  
+[X] Read the code and come up with the questions about the project.
+
+[X] Set up dataset and code shared on the GitHub. 
 
 ## Other Notes & Information
 N/A
