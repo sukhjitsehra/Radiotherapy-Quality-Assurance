@@ -13,7 +13,7 @@
 N/A
 
 ## Meeting Date/Time: Jan 15, 2025  
-[X] ~Setup the System for Faith
+[X] ~Setup the System for Faith~
 
 [X] Read the Papers to find out the EDA other than 3 parameters that we can plan for visualization discussion
 
