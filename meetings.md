@@ -1,8 +1,5 @@
 # Meeting Minutes
 
-## Other Notes & Information
-N/A
-
 ## Meeting Date/Time: Jan 15, 2025  
 [X] ~Setup the System for Faith~
 
