@@ -1,5 +1,10 @@
 # Meeting Minutes
 
+## Meeting Date/Time: Jan 29, 2025  
+[X] Read and run the code in field.py and plotting_HK.py
+
+[X] Write a notebook file to call/use these functions.
+
 ## Meeting Date/Time: Jan 15, 2025  
 [X] ~Setup the System for Faith~
 
