@@ -1,37 +1,33 @@
-# 📚 Literature Review: Summary of Read Papers
 
-This document contains structured notes on the research papers reviewed as part of the **Radiotherapy Quality Assurance** project.
 
----
+## 📅 March 11, 2025
 
-## **📌 Paper 1: Title of the Paper**
-- **Authors:** [Author Names]
-- **Published in:** [Journal/Conference Name], [Year]
-- **Objective:** What the paper aims to address.
-- **Key Findings:**
-  - [Finding 1]
-  - [Finding 2]
-  - [Finding 3]
-- **Relevance to Project:** How this paper contributes to understanding QA in radiotherapy.
+### 1️⃣ McNiven et al. (2010) - Modulation Complexity Score
+- **📄 Title**: A new metric for assessing IMRT modulation complexity and plan deliverability
+- **🔗 DOI**: [10.1118/1.3514120](https://doi.org/10.1118/1.3514120)
+- **🔍 Summary**:
+  - Introduces **Modulation Complexity Score (MCS)** to quantify IMRT plan complexity.
+  - High MCS **reduces deliverability** and **lowers QA pass rates**.
+  - Clinics should **optimize complexity** to balance accuracy and machine limitations.
 
 ---
 
-## **📌 Paper 2: Title of the Paper**
-- **Authors:** [Author Names]
-- **Published in:** [Journal/Conference Name], [Year]
-- **Objective:** What the paper aims to address.
-- **Key Findings:**
-  - [Finding 1]
-  - [Finding 2]
-  - [Finding 3]
-- **Relevance to Project:** How this paper contributes to understanding QA in radiotherapy.
+### 2️⃣ Miften et al. (2018) - IMRT QA Guidelines (AAPM Report 218)
+- **📄 Title**: Tolerance limits and methodologies for IMRT measurement-based verification QA
+- **🔗 DOI**: [10.1002/mp.12810](https://aapm.onlinelibrary.wiley.com/doi/full/10.1002/mp.12810)
+- **🔍 Summary**:
+  - Establishes **standardized QA** methods for IMRT.
+  - Discusses **Gamma Index analysis**, **pass rate thresholds**, and **QA metrics**.
+  - **Recommends machine-specific tolerances** for better QA reliability.
 
 ---
 
-## **📌 Next Steps**
-✔ Identify key research gaps.  
-✔ Compare methodologies used in reviewed papers.  
-✔ Document insights for implementation in the project.  
+### 3️⃣ Albert Chen (2013-2014) - Pass Rate Variability in ArcCheck
+- **📄 Title**: Understanding Pass Rate Variability in ArcCheck Measurements for SBRT
+
+- **🔍 Summary**:
+  - Analyzed **why SBRT QA pass rates vary (60%-98%)**.
+  - Found that **beam modulation is the strongest factor affecting QA**.
+  - Proposed **optimizing MLC movement to improve pass rates**.
 
 ---
-*Last updated on:* `$(date +"%Y-%m-%d")`
