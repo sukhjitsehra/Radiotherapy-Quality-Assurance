@@ -1,3 +1,9 @@
+---
+noteId: "440d78303bdd11f09c2347247b31af6b"
+tags: []
+
+---
+
 ## Instructions for Setting Up and Using Quarto to Write Reports in VS Code
 
 #### 1. **Install Quarto**
