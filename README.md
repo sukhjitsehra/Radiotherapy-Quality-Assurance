@@ -9,8 +9,11 @@ Project Organization
     ├── README.md          <- The top-level README for describing highlights for using this ML project.
     │
     ├── notebooks          <- Jupyter notebooks. Naming convention should snake case.
-    │
-    ├── Previous_Reports            
+    │      └──  dataset     <- Contains the dataset used in the project in JSON format.>
+    │      └──  exploratory_data_analysis <- Contains the exploratory data analysis notebook. 
+    │      └──  modelling <- Contains the model training notebook.
+    │      └──  pre-processing_and_feature_engineering <- Contains the pre-processing and feature engineering notebook. 
+    ├── Previous            
     │   └── PDF files        <- George Files
     |
     ├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
