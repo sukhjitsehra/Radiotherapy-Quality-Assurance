@@ -39,7 +39,7 @@ class Field():
         self.__calc_span()
 
 
-        #length_matrix = self.matrixA + self.matrixB
+        leafgaps = self.matrixA + self.matrixB # contains the tip-to-tip distances for all control points (including some behind the jaws)
         #areas_matrix = length_matrix*self.leaf_width
         #self.__set_gantry_total_areas(areas_matrix)
         #self.__set_span()
@@ -51,7 +51,6 @@ class Field():
     def __import_field(self, file_name):
         """
         imports the field information from the file name
-
         ------------------------------------------------
         Parameters
             file_name (str) - the name of the file to import from
@@ -171,11 +170,11 @@ class Field():
 
         else:
             exposed_leaf_start = [smallest_larger_than(self.leafblade_positions, -1.0*seg["collimatorY1"]) for seg in self.cp]
-            exposed_leaf_start = [l + 1 for l in exposed_leaf_start] # the retrieved leaf numbers using smallest_larger_than() start from 0
+            exposed_leaf_start = [l + 1 for l in exposed_leaf_start] # the retrieved leaf numbers from smallest_larger_than() start from 0
             exposed_leaf_end = [smallest_larger_than(self.leafblade_positions, seg["collimatorY2"]) for seg in self.cp]
             # no leaf number adjustment necessary here
 
-        self.exposed_leaf_start = exposed_leaf_start
+        self.exposed_leaf_start = exposed_leaf_start # leaf numbers starting from 1
         self.exposed_leaf_end = exposed_leaf_end
 
         return
@@ -297,22 +296,35 @@ class Field():
         alpha = -1.0*self.collimatorAngleRad
         unitvector = np.array([sin(alpha), cos(alpha)])
 
-        # assemble numpy array of (x,y) vectors to the leaf tips
         ### TODO: make it work for Varian
-        ### TODO: loop over all segments. 
-        segmentno = 25
-        xvalsA = self.matrixA.loc[self.exposed_leaf_start[segmentno]:self.exposed_leaf_end[segmentno], 
-                        self.matrixA.columns[segmentno]]
+
+        # for each segment
+        for segmentno in range(self.ncontrolpoints):
+            
+            # extract 'active' leaf positions
+            xvalsA = self.matrixA.loc[self.exposed_leaf_start[segmentno]:self.exposed_leaf_end[segmentno], 
+                            self.matrixA.columns[segmentno]]
+            xvalsB = self.matrixB.loc[self.exposed_leaf_start[segmentno]:self.exposed_leaf_end[segmentno], 
+                            self.matrixB.columns[segmentno]]
+        
         # for Elekta
-        yvals = self.leafblade_positions[::-1][self.exposed_leaf_start[segmentno]-1:self.exposed_leaf_end[segmentno]]
-        leaftipvectorsA = np.array(list(zip(xvalsA,yvals)))
-        # print(leaftipvectors)
-        dot_products_A = leaftipvectorsA @ unitvector
-        #print(max(dot_products_A), min(dot_products_A))
-        self.cp[segmentno].update({'spanMin': min(dot_products_A)})
-        self.cp[segmentno].update({'spanMax': max(dot_products_A)})
+        
+            xvalsB = -xvalsB # for the B leafs: positive position means negative x-coordinate value and vv
+            yvals = self.leafblade_positions[::-1][self.exposed_leaf_start[segmentno]-1:self.exposed_leaf_end[segmentno]]
+            # assemble numpy array of (x,y) vectors of the leaf tip positions
+            leaftipvectorsA = np.array(list(zip(xvalsA,yvals)))
+            leaftipvectorsB = np.array(list(zip(xvalsB,yvals)))
+            
+            dot_products_A = leaftipvectorsA @ unitvector
+            dot_products_B = leaftipvectorsB @ unitvector
+            
+            self.cp[segmentno].update({'spanMin': min(*dot_products_A, *dot_products_B)})
+            self.cp[segmentno].update({'spanMax': max(*dot_products_A, *dot_products_B)})
 
-
+        cpspans = [seg['spanMax'] - seg['spanMin'] for seg in self.cp]
+        
+        self.span = max(cpspans)
+        # TODO: test that
 
     def __set_circumference(self):
         matrixA = self.matrixA.T
