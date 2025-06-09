@@ -1,4 +1,4 @@
-
+#This script calculates and visualizes the rotated radiation field span based on machine geometry and collimator angle for Agility linacs.
 
 
 import matplotlib.pyplot as plt
