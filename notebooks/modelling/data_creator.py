@@ -5,7 +5,8 @@ def load_2D():
     import os, pandas as pd
     from field import Field
 
-    dates = "C:\\Users\\gfman\\Documents\\RadiationData" # folder that contains all radiation fields
+    dates = "/Users/armin/Desktop/Banafshe/project/test/Radiotherapy-Quality-Assurance/notebooks/Dataset"  # <-- update this line
+    print(dates) # folder that contains all radiation fields
     master = pd.DataFrame()
     for date in os.listdir(dates): # iterate through each day of saved data
 
@@ -32,21 +33,22 @@ def load_2D():
                 print("issue")
                 continue
             ids.append(field.field_ID)
-            areas.append(field.gantry_total_areas.mean())
-            circumferences.append(field.aperature_circumference.mean())
-            mcs.append(field.overall_mcs)
-            spans.append(field.spans.max())
-            coa.append(areas[-1]/circumferences[-1]) 
+            areas.append(field.gantry_total_areas.mean()) # Why mean?
+            #circumferences.append(field.aperature_circumference.mean())
+            #mcs.append(field.overall_mcs)
+            #spans.append(field.spans.max())
+            #coa.append(areas[-1]/circumferences[-1]) 
         for id in drop:
             metadata.drop(index = int(id), inplace=True)
 
         metadata["Area"] = pd.Series(areas, index = ids)
-        metadata["Circumference"] = pd.Series(circumferences, index = ids) 
-        metadata["MCS"] = pd.Series(mcs, index = ids) 
-        metadata['Span'] = pd.Series(spans, index = ids)
-        metadata["CoA"] = pd.Series(coa, index = ids)
+        #metadata["Circumference"] = pd.Series(circumferences, index = ids) 
+        #metadata["MCS"] = pd.Series(mcs, index = ids) 
+        #metadata['Span'] = pd.Series(spans, index = ids)
+        #metadata["CoA"] = pd.Series(coa, index = ids)
 
         master = pd.concat([master, metadata])
+    print(master)
     return master
 
 def pad_dataframe(existing_df, n, m):
