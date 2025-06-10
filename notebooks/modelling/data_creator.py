@@ -34,7 +34,7 @@ def load_2D():
                 continue
             ids.append(field.field_ID)
             areas.append(field.gantry_total_areas.mean()) # Why mean?
-            #circumferences.append(field.aperature_circumference.mean())
+            circumferences.append(field.aperture_circumference.mean())
             #mcs.append(field.overall_mcs)
             #spans.append(field.spans.max())
             #coa.append(areas[-1]/circumferences[-1]) 
@@ -42,7 +42,7 @@ def load_2D():
             metadata.drop(index = int(id), inplace=True)
 
         metadata["Area"] = pd.Series(areas, index = ids)
-        #metadata["Circumference"] = pd.Series(circumferences, index = ids) 
+        metadata["Circumference"] = pd.Series(circumferences, index = ids) 
         #metadata["MCS"] = pd.Series(mcs, index = ids) 
         #metadata['Span'] = pd.Series(spans, index = ids)
         #metadata["CoA"] = pd.Series(coa, index = ids)

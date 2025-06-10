@@ -50,16 +50,15 @@ class Field():
         self.__set_gantry_total_areas(self.areas_matrix)
         self.__set_gantry_average_areas(self.gantry_total_areas)
         self.total_area = self.__set_total_area()
-
-
+        self.__set_circumference()
+        #self.__set_MCS()
 
         leafgaps = self.matrixA + self.matrixB # contains the tip-to-tip distances for all control points (including some behind the jaws)
         #areas_matrix = length_matrix*self.leaf_width
         #self.__set_gantry_total_areas(areas_matrix)
         #self.__set_span()
         #self.__set_MU()
-        #self.__set_circumference()
-        #self.__set_MCS()
+        
 
     
     def __import_field(self, file_name):
@@ -342,62 +341,68 @@ class Field():
         # TODO: test that
 
     def __set_circumference(self):
-        matrixA = self.matrixA.T
-        rightA = matrixA.iloc[:,1:]
-        rightA.columns = matrixA.columns[:-1]
+        import pandas as pd
+        leaf_width_series = pd.Series(self.leaf_width, index=range(1, self.nleafs + 1))
+        leaf_width_series = leaf_width_series.loc[self.matrixA.index]
+        # Initialize Series for each control point
+        aperture_circ = []
+        for angle in self.matrixA.columns:
+            a = self.matrixA[angle]
+            b = self.matrixB[angle]
+            # Vertical differences between adjacent leaves (absolute value)
+            diffA = (a.diff().abs()).iloc[1:]  # skip NaN
+            diffB = (b.diff().abs()).iloc[1:]
+            # Sum of vertical edges
+            vertical = (diffA + diffB).sum()
+            # Add horizontal edges (top + bottom leaf opening)
+            horizontal = (a.iloc[0] + b.iloc[0]) + (a.iloc[-1] + b.iloc[-1])
+            # Total perimeter at this gantry angle
+            total = vertical + horizontal
+            aperture_circ.append(total)
+       
+        self.aperture_circumference = pd.Series(aperture_circ, index=self.matrixA.columns)
 
-        leftA = matrixA.iloc[:, :-1]
-        leftA.columns = matrixA.columns[1:]
-
-        left_diffA = abs(matrixA.iloc[:,1:] - leftA) 
-        left_diffA[self.exposed_leaf_start] = 0
-
-        right_diffA = abs(matrixA.iloc[:,:-1] - rightA)
-        right_diffA[self.exposed_leaf_end] = 0 
-
-        circumferenceA  = 1/2*(left_diffA+ right_diffA) + self.leaf_width
-
-        matrixB = self.matrixB.T
-        rightB = matrixB.iloc[:,1:]
-        rightB.columns = matrixB.columns[:-1]
-
-        leftB = matrixB.iloc[:, :-1]
-        leftB.columns = matrixB.columns[1:]
-
-        left_diffB = abs(matrixB.iloc[:,1:] - leftB) 
-        left_diffB[self.exposed_leaf_start] = 0
-
-        right_diffB = abs(matrixB.iloc[:,:-1] - rightB)
-        right_diffB[self.exposed_leaf_end] = 0 
-
-        circumferenceB  = 1/2*(left_diffB+ right_diffB) + self.leaf_width
-
-        total_circumference = circumferenceA + circumferenceB
-
-        aperture_circumference = total_circumference.T.sum() + self.matrixA.iloc[0] + self.matrixB.iloc[0] + self.matrixA.iloc[-1] + self.matrixB.iloc[-1]
-
-        self.aperture_circumference = aperture_circumference
+      
+    
 
     def __set_MCS(self):
-        
+
+        import numpy as np
+
         pos_a = self.matrixA
         pos_b = self.matrixB
-
-        pos_max_a = pos_a.max() - pos_a.min()
-        pos_max_b = pos_b.max() - pos_b.min()
         n = pos_a.shape[0]
+        epsilon = 1e-6
 
-        lsv_a = (pos_max_a - pos_a.diff()).sum()/((n)*pos_max_a)
-        lsv_b = (pos_max_b - pos_b.diff()).sum()/((n)*pos_max_b)
+        # LSV
+        lsv_a = pos_a.diff().abs().iloc[1:]
+        lsv_b = pos_b.diff().abs().iloc[1:]
 
-        lsv_segment = lsv_a * lsv_b
+        rangeA = pos_a.max() - pos_a.min() + epsilon
+        rangeB = pos_b.max() - pos_b.min() + epsilon
+        
+        lsvA = 1 - (diffA.sum() / (n * rangeA))
+        lsvB = 1 - (diffB.sum() / (n * rangeB))
 
-        aav = (pos_a + pos_b).sum()/(pos_a.T.max() + pos_b.T.max()).sum()
+        lsv = lsvA * lsvB
+        # --- AAV (Aperture Area Variability) ---
+        aperture = pos_a + pos_b
+        total_aperture = aperture.sum()
+        max_opening = aperture.max() + epsilon
+        aav = total_aperture / max_opening
+        # --- MU weighting (needs to be precomputed) ---
+        if not hasattr(self, "aperture_ms"):
+            self.__set_MU()  # make sure it's there
+        mu = self.aperture_ms / (self.aperture_ms.sum() + epsilon)
+        # --- Final MCS per control point ---
+        mcs_segment = lsv * aav * mu
+        self.aperture_mcs = mcs_segment
+        self.overall_mcs = mcs_segment.sum()
 
-        mcs_beam = (aav * lsv_segment * self.aperture_ms).sum()
 
-        self.aperture_mcs = aav * lsv_segment * self.aperture_ms
-        self.overall_mcs = mcs_beam
+        
+        
+
 
     
 
