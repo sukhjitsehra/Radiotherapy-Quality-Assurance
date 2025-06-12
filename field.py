@@ -25,7 +25,7 @@ class Field():
         self.has_bolus = field_info["hasBolus"]
         if self.machine_type == "Agility":
             self.nleafs = 80
-            self.leaf_width = [0.5]*self.nleafs
+            self.leaf_width = [0.5]*self.nleafs #Why 0.5 for the leaf?
             self.leafblade_positions = [(pos+0.5)/2-20.0 for pos in range(80)] # arranged from negative to positive
         else: # for Varian MLC
             self.nleafs=60
@@ -37,15 +37,28 @@ class Field():
         self.__get_exposed_leafs()
         self.__create_matrix()
         self.__calc_span()
+        import pandas as pd
 
+        length_matrix = self.matrixA + self.matrixB # [-1.3, 2.4] -> length = 1.1
+
+        leaf_width_series = pd.Series(self.leaf_width, index=range(1, self.nleafs + 1))
+        leaf_width_series = leaf_width_series.loc[self.matrixA.index]  # [0.5, 0.5, ..., 0.5]
+
+        self.areas_matrix = length_matrix.multiply(leaf_width_series, axis=0)
+        self.__set_leaf_total_areas()
+        self.__set_leaf_average_areas()
+        self.__set_gantry_total_areas(self.areas_matrix)
+        self.__set_gantry_average_areas(self.gantry_total_areas)
+        self.total_area = self.__set_total_area()
+        self.__set_circumference()
+        #self.__set_MCS()
 
         leafgaps = self.matrixA + self.matrixB # contains the tip-to-tip distances for all control points (including some behind the jaws)
         #areas_matrix = length_matrix*self.leaf_width
         #self.__set_gantry_total_areas(areas_matrix)
         #self.__set_span()
         #self.__set_MU()
-        #self.__set_circumference()
-        #self.__set_MCS()
+        
 
     
     def __import_field(self, file_name):
@@ -115,6 +128,7 @@ class Field():
 
         return
     
+    
     def __set_MU(self):
         import pandas as pd
         cum_ms = []
@@ -142,8 +156,8 @@ class Field():
         self.leaf_total_areas =  self.areas_matrix.T.sum()
         return
     
-    def __set_gantry_average_areas(self, areas):
-        self.gantry_average_areas =  areas.mean()
+    def __set_gantry_average_areas(self, areas_matrix):
+        self.gantry_average_areas =  areas_matrix.mean()
         return
 
     def __set_gantry_total_areas(self, areas_matrix):
@@ -327,62 +341,83 @@ class Field():
         # TODO: test that
 
     def __set_circumference(self):
-        matrixA = self.matrixA.T
-        rightA = matrixA.iloc[:,1:]
-        rightA.columns = matrixA.columns[:-1]
+        import pandas as pd
+        leaf_width_series = pd.Series(self.leaf_width, index=range(1, self.nleafs + 1))
+        leaf_width_series = leaf_width_series.loc[self.matrixA.index]
+        perimeters = []
+        # Initialize Series for each control point
+        
+        for angle in self.matrixA.columns:
+            a = self.matrixA[angle]
+            b = self.matrixB[angle]
+            gaps= a + b  # tip-to-tip distances for all control points
+            
 
-        leftA = matrixA.iloc[:, :-1]
-        leftA.columns = matrixA.columns[1:]
+            if gaps.empty:
 
-        left_diffA = abs(matrixA.iloc[:,1:] - leftA) 
-        left_diffA[self.exposed_leaf_start] = 0
+                
+                print(f"⚠️ Skipping Control Point {angle} — no exposed leaves.")
+                perimeters.append(0.0)
+                continue
+            print(f"Control Point {angle}: gaps = {gaps}")
+            
+            # Sum of vertical edges
+            vertical_jumps = gaps.diff().abs().iloc[1:].sum()
+            print(f"Control Point {angle}: vertical jumps = {vertical_jumps}")
+            # Add horizontal edges (top + bottom leaf opening)
+            horizontal = gaps.iloc[0] + gaps.iloc[-1]
+            print(f"Control Point {angle}: horizontal = {horizontal}, vertical jumps = {vertical_jumps}")
+            n_leaves = len(gaps)
+            print(f"Control Point {angle}: n_leaves = {n_leaves}")
+            vertical_sides = 2 * n_leaves * leaf_width_series.iloc[0] # constant width
+            print(f"Control Point {angle}: vertical_sides = {vertical_sides}")
+            P = horizontal + vertical_jumps + vertical_sides
+            print(f"Control Point {angle}: P = {P}")
+            perimeters.append(P)
 
-        right_diffA = abs(matrixA.iloc[:,:-1] - rightA)
-        right_diffA[self.exposed_leaf_end] = 0 
-
-        circumferenceA  = 1/2*(left_diffA+ right_diffA) + self.leaf_width
-
-        matrixB = self.matrixB.T
-        rightB = matrixB.iloc[:,1:]
-        rightB.columns = matrixB.columns[:-1]
-
-        leftB = matrixB.iloc[:, :-1]
-        leftB.columns = matrixB.columns[1:]
-
-        left_diffB = abs(matrixB.iloc[:,1:] - leftB) 
-        left_diffB[self.exposed_leaf_start] = 0
-
-        right_diffB = abs(matrixB.iloc[:,:-1] - rightB)
-        right_diffB[self.exposed_leaf_end] = 0 
-
-        circumferenceB  = 1/2*(left_diffB+ right_diffB) + self.leaf_width
-
-        total_circumference = circumferenceA + circumferenceB
-
-        aperture_circumference = total_circumference.T.sum() + self.matrixA.iloc[0] + self.matrixB.iloc[0] + self.matrixA.iloc[-1] + self.matrixB.iloc[-1]
-
-        self.aperture_circumference = aperture_circumference
+        self.aperture_circumference = pd.Series(perimeters, index=self.matrixA.columns)
+        
+      
+    
 
     def __set_MCS(self):
-        
+
+        import numpy as np
+
         pos_a = self.matrixA
         pos_b = self.matrixB
-
-        pos_max_a = pos_a.max() - pos_a.min()
-        pos_max_b = pos_b.max() - pos_b.min()
         n = pos_a.shape[0]
+        epsilon = 1e-6
 
-        lsv_a = (pos_max_a - pos_a.diff()).sum()/((n)*pos_max_a)
-        lsv_b = (pos_max_b - pos_b.diff()).sum()/((n)*pos_max_b)
+        # LSV
+        lsv_a = pos_a.diff().abs().iloc[1:]
+        lsv_b = pos_b.diff().abs().iloc[1:]
 
-        lsv_segment = lsv_a * lsv_b
+        rangeA = pos_a.max() - pos_a.min() + epsilon
+        rangeB = pos_b.max() - pos_b.min() + epsilon
+        
+        lsvA = 1 - (diffA.sum() / (n * rangeA))
+        lsvB = 1 - (diffB.sum() / (n * rangeB))
 
-        aav = (pos_a + pos_b).sum()/(pos_a.T.max() + pos_b.T.max()).sum()
+        lsv = lsvA * lsvB
+        # --- AAV (Aperture Area Variability) ---
+        aperture = pos_a + pos_b
+        total_aperture = aperture.sum()
+        max_opening = aperture.max() + epsilon
+        aav = total_aperture / max_opening
+        # --- MU weighting (needs to be precomputed) ---
+        if not hasattr(self, "aperture_ms"):
+            self.__set_MU()  # make sure it's there
+        mu = self.aperture_ms / (self.aperture_ms.sum() + epsilon)
+        # --- Final MCS per control point ---
+        mcs_segment = lsv * aav * mu
+        self.aperture_mcs = mcs_segment
+        self.overall_mcs = mcs_segment.sum()
 
-        mcs_beam = (aav * lsv_segment * self.aperture_ms).sum()
 
-        self.aperture_mcs = aav * lsv_segment * self.aperture_ms
-        self.overall_mcs = mcs_beam
+        
+        
+
 
     
 
