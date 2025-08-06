@@ -56,9 +56,14 @@ class Field():
         leafgaps = self.matrixA + self.matrixB # contains the tip-to-tip distances for all control points (including some behind the jaws)
         #areas_matrix = length_matrix*self.leaf_width
         #self.__set_gantry_total_areas(areas_matrix)
-        #self.__set_span()
-        #self.__set_MU()
+        self.__calc_span()
+        self.__set_MU()
         
+        #self.__set_LSV()
+        self.__compute_LSV()
+        self.__compute_AAV()
+        self.__set_MCS()
+
 
     
     def __import_field(self, file_name):
@@ -129,20 +134,13 @@ class Field():
 
         return
     
+
+
+
     
-    def __set_MU(self):
-        import pandas as pd
-        cum_ms = []
 
-        total_ms = self.beam_meterset
-        for aperture in self.cp:
-            cum_ms.append(aperture['cumulativeMetersetWeight'])
-
-        cum_ms = pd.Series(cum_ms, index = self.columns)
-        prop_ms = cum_ms.diff()
-        prop_ms[self.columns[0]] = 0
-
-        self.aperture_ms = prop_ms*total_ms 
+        
+        
 
 #THIS WORKS!!! Tested with difrent fields and it is correct !!!
     
@@ -307,41 +305,113 @@ class Field():
         self.spans = pd.Series(spans, index = self.columns)
 
     """
-    def __calc_span(self):
+    def __calc_span(self):  # calculates the maximum vertical span
         import numpy as np
-        alpha = -1.0*self.collimatorAngleRad
+        alpha = -1.0 * self.collimatorAngleRad  # projecting onto vertical axis (y-axis)
         unitvector = np.array([sin(alpha), cos(alpha)])
 
-        ### TODO: make it work for Varian
-
-        # for each segment
         for segmentno in range(self.ncontrolpoints):
-            
-            # extract 'active' leaf positions
-            xvalsA = self.matrixA.loc[self.exposed_leaf_start[segmentno]:self.exposed_leaf_end[segmentno], 
-                            self.matrixA.columns[segmentno]]
-            xvalsB = self.matrixB.loc[self.exposed_leaf_start[segmentno]:self.exposed_leaf_end[segmentno], 
-                            self.matrixB.columns[segmentno]]
-        
-        # for Elekta
-        
-            xvalsB = -xvalsB # for the B leafs: positive position means negative x-coordinate value and vv
-            yvals = self.leafblade_positions[::-1][self.exposed_leaf_start[segmentno]-1:self.exposed_leaf_end[segmentno]]
-            # assemble numpy array of (x,y) vectors of the leaf tip positions
-            leaftipvectorsA = np.array(list(zip(xvalsA,yvals)))
-            leaftipvectorsB = np.array(list(zip(xvalsB,yvals)))
-            
+            gantry_angle = self.matrixA.columns[segmentno]
+            start = self.exposed_leaf_start[segmentno]
+            end = self.exposed_leaf_end[segmentno]
+
+            # Extract leaf positions
+            xvalsA = self.matrixA.loc[start:end, gantry_angle]
+            xvalsB = self.matrixB.loc[start:end, gantry_angle]
+
+            if self.machine_type == "Agility":
+                # Elekta: invert B bank and reverse y-axis indexing
+                xvalsB = -xvalsB
+                yvals = self.leafblade_positions[::-1][start - 1:end]
+                
+            else:
+                # Varian: direct indexing
+                yvals = self.leafblade_positions[start - 1:end]
+
+            # Form tip vectors and project onto axis defined by collimator angle
+            leaftipvectorsA = np.array(list(zip(xvalsA, yvals)))
+            leaftipvectorsB = np.array(list(zip(xvalsB, yvals)))
+
             dot_products_A = leaftipvectorsA @ unitvector
             dot_products_B = leaftipvectorsB @ unitvector
-            
+
             self.cp[segmentno].update({'spanMin': min(*dot_products_A, *dot_products_B)})
             self.cp[segmentno].update({'spanMax': max(*dot_products_A, *dot_products_B)})
 
         cpspans = [seg['spanMax'] - seg['spanMin'] for seg in self.cp]
+        self.span = cpspans.max()
+
+    def __compute_AAV(self):
+        import numpy as np
+
+        matrixA = self.matrixA.values.T  # shape: (num_cp, num_leaves)
+        matrixB = self.matrixB.values.T
+
+        aperture_diff = matrixA + matrixB  # shape: (num_cp, num_leaves)
+        numerators = np.sum(aperture_diff, axis=1)  # one per CP
+
+        max_A = np.max(matrixA, axis=0)
+        max_B = np.max(matrixB, axis=0)
+        denominator = np.sum(max_A + max_B)
+
+        if denominator == 0:
+            denominator = 1e-8
+
+        AAV_cp = numerators / denominator
+        self.AAV_cp = AAV_cp
+
+
+
+    def __compute_LSV(self):
+        import numpy as np
+
+        def lsv_bank(bank_matrix):
+            bank_matrix = bank_matrix.T  # shape = (num_cp, num_leaves)
+
+            N = bank_matrix.shape[1]  # number of leaves
+            pos_diff = np.abs(np.diff(bank_matrix, axis=1))
+            p_max = np.max(bank_matrix, axis=1) - np.min(bank_matrix, axis=1)
+            p_max = np.where(p_max == 0, 1e-8, p_max)
+            numerator = np.sum(p_max[:, np.newaxis] - pos_diff, axis=1)
+            lsv = numerator / ((N - 1) * p_max)
+            return lsv
+
+        lsvA = lsv_bank(self.matrixA.values)
+        lsvB = lsv_bank(self.matrixB.values)
+        self.LSV_cp = lsvA * lsvB
+
         
-        self.span = max(cpspans)
-        # TODO: test that
-#THIS WORKS!!! Tested with difrent fields and it is correct !!!
+    def __set_MCS(self):
+        import numpy as np
+        import pandas as pd
+
+        AAV = self.AAV_cp
+        LSV = self.LSV_cp
+        mu_weights = self.mu_weights.values  # normalized MU weights (length = num_cp)
+
+        MCS_values = []
+        cp_labels = []
+
+        for i in range(len(AAV) - 1):
+            avg_AAV = (AAV[i] + AAV[i + 1]) / 2
+            avg_LSV = (LSV[i] + LSV[i + 1]) / 2
+            mu_fraction = mu_weights[i + 1]  # corresponds to MU between CP_i and CP_{i+1}
+            MCS_values.append(avg_AAV * avg_LSV * mu_fraction)
+            cp_labels.append(f"CP{i}-{i+1}")
+
+        self.MCS_terms = pd.Series(MCS_values, index=cp_labels)
+
+        self.MCS_arc = round(np.sum(MCS_values), 6)
+        
+
+
+
+
+
+
+
+
+#THIS WORKS!!! Tested with different fields and it is correct !!!
     def __set_circumference(self):
         import pandas as pd
         leaf_width_series = pd.Series(self.leaf_width, index=range(1, self.nleafs + 1))
@@ -373,64 +443,23 @@ class Field():
         
       
 
-    def __set_MCS(self):
-
-        import numpy as np
-
-        pos_a = self.matrixA
-        pos_b = self.matrixB
-        n = pos_a.shape[0]
-        epsilon = 1e-6
-
-        # LSV
-        lsv_a = pos_a.diff().abs().iloc[1:]
-        lsv_b = pos_b.diff().abs().iloc[1:]
-
-        rangeA = pos_a.max() - pos_a.min() + epsilon
-        rangeB = pos_b.max() - pos_b.min() + epsilon
-        
-        lsvA = 1 - (diffA.sum() / (n * rangeA))
-        lsvB = 1 - (diffB.sum() / (n * rangeB))
-
-        lsv = lsvA * lsvB
-        # --- AAV (Aperture Area Variability) ---
-        aperture = pos_a + pos_b
-        total_aperture = aperture.sum()
-        max_opening = aperture.max() + epsilon
-        aav = total_aperture / max_opening
-        # --- MU weighting (needs to be precomputed) ---
-        if not hasattr(self, "aperture_ms"):
-            self.__set_MU()  # make sure it's there
-        mu = self.aperture_ms / (self.aperture_ms.sum() + epsilon)
-        # --- Final MCS per control point ---
-        mcs_segment = lsv * aav * mu
-        self.aperture_mcs = mcs_segment
-        self.overall_mcs = mcs_segment.sum()
-
-
-        
-        
-
+    def __set_MU(self):
+    # """Calculates the monitor units (MUs) delivered at each control point
+    #     and stores both raw MU and normalized weights (w_i)."""
+        import pandas as pd
+        # Step 1: Extract cumulativeMetersetWeight from each control point
+        cum_ms = [cp['cumulativeMetersetWeight'] for cp in self.cp]
+    # Step 2: Convert to Series indexed by gantry angles
+        cum_ms_series = pd.Series(cum_ms, index=self.columns)
+    # Step 3: Compute MU delivered at each segment as the difference in CMW    
+        mu_diff = cum_ms_series.diff().fillna(0)
+    # Step 4: Scale by total MUs delivered for the field
+        mu_diff = mu_diff * self.beam_meterset
+        self.aperture_ms = mu_diff
+    # Step 5: Normalize MUs to get weights
+        self.mu_weights = mu_diff / (mu_diff.sum())
 
     
 
-
-
-def smallest_larger_than(lst, a):
-    """
-    With thanks to chatGPT
-    returns the index in the list lst containing the smallest element larger than a. 
-
-    :param lst: 
-    :type lst: integer or float
-    :param a: Description
-    :type a: 
-    :return: Description
-    :rtype: int | None
-    """
-    
-    filtered_indices = [i for i, x in enumerate(lst) if x > a]
-    if not filtered_indices:
-        return None
-    smallest_index = min(filtered_indices, key=lambda i: lst[i])
-    return smallest_index
+        
+        
