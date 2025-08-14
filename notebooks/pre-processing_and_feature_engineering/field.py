@@ -339,7 +339,9 @@ class Field():
             self.cp[segmentno].update({'spanMax': max(*dot_products_A, *dot_products_B)})
 
         cpspans = [seg['spanMax'] - seg['spanMin'] for seg in self.cp]
-        self.span = cpspans.max()
+
+        self.cpspans = cpspans
+        self.span = max(cpspans)
 
     def __compute_AAV(self):
         import numpy as np
@@ -463,3 +465,23 @@ class Field():
 
         
         
+
+
+def smallest_larger_than(lst, a):
+    """
+    With thanks to chatGPT
+    returns the index in the list lst containing the smallest element larger than a. 
+
+    :param lst: 
+    :type lst: integer or float
+    :param a: Description
+    :type a: 
+    :return: Description
+    :rtype: int | None
+    """
+    
+    filtered_indices = [i for i, x in enumerate(lst) if x > a]
+    if not filtered_indices:
+        return None
+    smallest_index = min(filtered_indices, key=lambda i: lst[i])
+    return smallest_index

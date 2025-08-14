@@ -6,7 +6,7 @@ def load_2D():
     from field import Field
 
     dates = "/Users/armin/Desktop/Banafshe/project/test/Radiotherapy-Quality-Assurance/notebooks/Dataset"  # <-- update this line
-    print(dates) # folder that contains all radiation fields
+    #print(dates) # folder that contains all radiation fields
     master = pd.DataFrame()
     for date in os.listdir(dates): # iterate through each day of saved data
 
@@ -27,16 +27,12 @@ def load_2D():
                 continue
             elif ".txt" in file:
                 continue
-            try:
-                field = Field(filename) # try to make a Field object from the radiation field
-            except:
-                print("issue")
-                continue
+            field = Field(filename) # try to make a Field object from the radiation field
             ids.append(field.field_ID)
             areas.append(field.gantry_total_areas.mean()) # Why mean?
             circumferences.append(field.aperture_circumference.mean())
             mcs.append(field.MCS_arc)
-            spans.append(field.span.max())
+            spans.append(max(field.span))
             coa.append(areas[-1]/circumferences[-1]) 
         for id in drop:
             metadata.drop(index = int(id), inplace=True)
@@ -48,7 +44,7 @@ def load_2D():
         metadata["CoA"] = pd.Series(coa, index = ids)
 
         master = pd.concat([master, metadata])
-    print(master)
+    #print(master)
     return master
 
 def pad_dataframe(existing_df, n, m):
@@ -79,32 +75,31 @@ def load_3D_cm(): # 3D Tensor with complexity metrics
 
     for date in os.listdir(dates): # iterate through each day of saved data
 
-        metadata = None
         files = dates + "/" + date # folder that contains all the fields for a select day
 
-        #metadata = pd.read_json(files + "/" + os.listdir(files)[-1]).set_index("FieldID") # read the metadata of the daily files
+        metadata = pd.read_json(files + "/" + os.listdir(files)[-1]).set_index("FieldID") # read the metadata of the daily files
 
         for file in os.listdir(files): # iterate over every file from the day
-            filename = files + "/" + file # create file name
             if "MetaData" in file:
-                metadata = pd.read_json(filename).set_index("FieldID") # read the metadata of the daily files
                 continue
             elif ".txt" in file:
-                continue            
+                continue
+            filename = files + "/" + file # create file name
+            
             try:
                 field = Field(filename) # try to make a Field object from the radiation field
 
             except:
                 continue
             areas = field.gantry_total_areas
-            circumferences = field.aperture_circumference
-            metric_units = field.mu_weights
+            circumferences = field.aperature_circumference
+            metric_units = field.aperature_ms
             coas = circumferences/areas*metric_units
-            mcs = field.MCS_arc
-            span = field.span
+            mcs = field.aperature_mcs
+            spans = field.spans
 
-            #if math.isnan(mcs.mean()):
-                    #continue # some mcs columns are full of nan's
+            if math.isnan(mcs.mean()):
+                    continue # some mcs columns are full of nan's
 
             field_features = []
             for i in range(180):
@@ -113,24 +108,24 @@ def load_3D_cm(): # 3D Tensor with complexity metrics
                     circumference = circumferences.mean()
                     mu = metric_units.mean()
                     coa = coas.mean()
-                    #modulation_cs = mcs.mean()
-                    #span = span.mean()
+                    modulation_cs = mcs.mean()
+                    span = spans.mean()
                 else:
                     area = areas.iloc[i]
                     circumference = circumferences.iloc[i]
                     mu = metric_units.iloc[i]
                     coa = coas.iloc[i]
-                    #modulation_cs = mcs.iloc[i]
-                    #span = span.iloc[i]
-                #if math.isnan(modulation_cs):
-                    #modulation_cs = mcs.mean()
+                    modulation_cs = mcs.iloc[i]
+                    span = spans.iloc[i]
+                if math.isnan(modulation_cs):
+                    modulation_cs = mcs.mean()
 
-                field_features.append([area,circumference, mu, coa, span])
+                field_features.append([area,circumference, mu, coa, modulation_cs, span])
                 
             features.append(field_features)
             field_id.append(field.field_ID)
-            if metadata is not None:
-                AD.append(metadata.loc[field.field_ID, "AD"] > metadata.loc[field.field_ID, "ADPass"]) # append AD from metadata to list
+        
+            AD.append(metadata.loc[field.field_ID, "AD"] > metadata.loc[field.field_ID, "ADPass"]) # append AD from metadata to list
 
     return np.array(features), np.array(AD)
 
@@ -141,7 +136,7 @@ def load_3D_unstructured():
     features = [] # list for storing matrices
     AD = [] # list for storing AD
 
-    dates = dates = "/Users/armin/Desktop/Banafshe/project/test/Radiotherapy-Quality-Assurance/notebooks/Dataset" # folder that contains all radiation fields
+    dates = "/Users/armin/Desktop/Banafshe/project/test/Radiotherapy-Quality-Assurance/notebooks/Dataset"
 
     for date in os.listdir(dates): # iterate through each day of saved data
 
@@ -213,4 +208,3 @@ def load_4D():
             AD.append(metadata.loc[field.field_ID, "AD"]) # append AD from metadata to list
 
     return np.array(features), np.array(AD)
-
