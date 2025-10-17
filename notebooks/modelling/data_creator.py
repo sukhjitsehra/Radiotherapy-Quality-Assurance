@@ -19,21 +19,28 @@ def load_2D():
         coa = []
         ids = []
         drop = []
+        machine_type = []
         for file in os.listdir(files): # iterate over every file from the day
             filename = files + "/" + file # create file name
             id = file[8:15]
+            
             if "MetaData" in file:
                 metadata = pd.read_json(filename).set_index("FieldID") # read the metadata of the daily files
                 continue
             elif ".txt" in file:
                 continue
-            field = Field(filename) # try to make a Field object from the radiation field
+            try:
+                field = Field(filename) # try to make a Field object from the radiation field
+            except Exception as e:
+                print(f"Skipping broken file in load_2D: {filename} - Error: {e}")
+                continue
             ids.append(field.field_ID)
             areas.append(field.gantry_total_areas.mean()) # Why mean?
             circumferences.append(field.aperture_circumference.mean())
             mcs.append(field.MCS_arc)
             spans.append(max(field.span))
             coa.append(areas[-1]/circumferences[-1]) 
+            machine_type.append(field.machine_type)
         for id in drop:
             metadata.drop(index = int(id), inplace=True)
 
@@ -42,9 +49,11 @@ def load_2D():
         metadata["MCS"] = pd.Series(mcs, index = ids) 
         metadata['Span'] = pd.Series(spans, index = ids)
         metadata["CoA"] = pd.Series(coa, index = ids)
+        metadata["MachineType"] = pd.Series(machine_type, index = ids)
 
         master = pd.concat([master, metadata])
     #print(master)
+    # if field is agility, then calculate the span 
     return master
 
 def pad_dataframe(existing_df, n, m):
@@ -63,10 +72,11 @@ def pad_dataframe(existing_df, n, m):
     return padded_df
 
 def load_3D_cm(): # 3D Tensor with complexity metrics
+    print("Loading 3D cm data...")
     import pandas as pd, numpy as np, os
     from field import Field
     import math
-
+    
     features = [] # list for storing matrices
     AD = [] # list for storing AD
     field_id = []
@@ -77,54 +87,61 @@ def load_3D_cm(): # 3D Tensor with complexity metrics
 
         files = dates + "/" + date # folder that contains all the fields for a select day
 
-        metadata = pd.read_json(files + "/" + os.listdir(files)[-1]).set_index("FieldID") # read the metadata of the daily files
+        # Find the metadata file by name
+        metadata = None
+        for file in os.listdir(files):
+            if "MetaData" in file:
+                metadata = pd.read_json(files + "/" + file).set_index("FieldID")
+                break
+        if metadata is None:
+            continue  # skip if no metadata file found
 
         for file in os.listdir(files): # iterate over every file from the day
-            if "MetaData" in file:
-                continue
-            elif ".txt" in file:
+            if "MetaData" in file or ".txt" in file:
                 continue
             filename = files + "/" + file # create file name
             
             try:
                 field = Field(filename) # try to make a Field object from the radiation field
-
             except:
                 continue
             areas = field.gantry_total_areas
-            circumferences = field.aperature_circumference
-            metric_units = field.aperature_ms
+            circumferences = field.aperture_circumference
+            metric_units = field.aperture_ms
             coas = circumferences/areas*metric_units
-            mcs = field.aperature_mcs
-            spans = field.spans
+            mcs = field.MCS_arc
+            spans = field.span
+            
 
             if math.isnan(mcs.mean()):
-                    continue # some mcs columns are full of nan's
-
+                continue # some mcs columns are full of nan's
+            import numpy as np
             field_features = []
+            def get_value(x, i):
+                # If x is a scalar, return it; if array/Series, index it
+                if isinstance(x, (float, int, np.float64, np.int64)):
+                    return x
+                try:
+                    return x[i]
+                except Exception:
+                    return np.mean(x)
+            
+            
             for i in range(180):
-                if i >= len(areas):
-                    area = areas.mean()
-                    circumference = circumferences.mean()
-                    mu = metric_units.mean()
-                    coa = coas.mean()
-                    modulation_cs = mcs.mean()
-                    span = spans.mean()
-                else:
-                    area = areas.iloc[i]
-                    circumference = circumferences.iloc[i]
-                    mu = metric_units.iloc[i]
-                    coa = coas.iloc[i]
-                    modulation_cs = mcs.iloc[i]
-                    span = spans.iloc[i]
+                area = areas.mean() if i >= len(areas) else areas.iloc[i]
+                circumference = circumferences.mean() if i >= len(circumferences) else circumferences.iloc[i]
+                mu = metric_units.mean() if i >= len(metric_units) else metric_units.iloc[i]
+                coa = coas.mean() if i >= len(coas) else coas.iloc[i]
+                modulation_cs = get_value(mcs, i)
+                span = get_value(spans, i)
                 if math.isnan(modulation_cs):
-                    modulation_cs = mcs.mean()
-
-                field_features.append([area,circumference, mu, coa, modulation_cs, span])
+                    modulation_cs = np.mean(mcs)
+                field_features.append([area, circumference, mu, coa, modulation_cs, span])
                 
+               
             features.append(field_features)
             field_id.append(field.field_ID)
-        
+            
             AD.append(metadata.loc[field.field_ID, "AD"] > metadata.loc[field.field_ID, "ADPass"]) # append AD from metadata to list
 
     return np.array(features), np.array(AD)

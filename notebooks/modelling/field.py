@@ -176,6 +176,7 @@ class Field():
             #exposed_leaf_start = [int(seg["mlcLeaves"]/2 - seg["collimatorX1"]/self.leaf_width[0] + 1) for seg in self.cp] 
             #exposed_leaf_end = [int(seg["mlcLeaves"]/2 + seg["collimatorX2"]/self.leaf_width[0]) for seg in self.cp]
             
+            
             exposed_leaf_start = [smallest_larger_than(self.leafblade_positions, seg["collimatorX1"]) for seg in self.cp]
             exposed_leaf_start = [80 - l + 1 for l in exposed_leaf_start]
             exposed_leaf_end = [smallest_larger_than(self.leafblade_positions, seg["collimatorX2"]) for seg in self.cp]
@@ -480,6 +481,6 @@ def smallest_larger_than(lst, a):
     
     filtered_indices = [i for i, x in enumerate(lst) if x > a]
     if not filtered_indices:
-        return None
+        return 0
     smallest_index = min(filtered_indices, key=lambda i: lst[i])
     return smallest_index
