@@ -5,7 +5,7 @@ def load_2D():
     import os, pandas as pd
     from field import Field
 
-    dates = "/Users/armin/Desktop/Banafshe/project/test/Radiotherapy-Quality-Assurance/notebooks/Dataset"  # <-- update this line
+    dates = "Dataset"  # <-- update this line
     #print(dates) # folder that contains all radiation fields
     master = pd.DataFrame()
     for date in os.listdir(dates): # iterate through each day of saved data
