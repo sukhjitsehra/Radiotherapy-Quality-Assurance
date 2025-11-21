@@ -4,6 +4,7 @@ Project Instructions
 ## Dataset:
 
 - First method to get the dataset used for this project was local to violet's computer, the link is: ![Violets Data OneDrive](). This was primiarly used by George (308 fields) and now new updates were added and it is (2800 fields). 
+- How to download the date from HuggingFace to test this model on a larger data.
 
 - Second method is huggingface dataset that is continously being updated by Harry.
 
@@ -17,6 +18,7 @@ Project Instructions
     ├── README.md          <- The top-level README for describing highlights for using this ML project.
     │
     ├── notebooks          <- Jupyter notebooks. Naming convention should snake case.
+    │      └──  one_sample_exploratory_data_analysis     <- Contains the one sample for the visualization of leaf used in the project in JSON format.>
     │      └──  Dataset     <- Contains the dataset used in the project in JSON format.>
            └──  modelling <- Contains the model training notebook.
                 └──  data_creator.py <- To creating dataframe for JSON file, so update the folder location of the dataset. We usually call this in other files. 
@@ -28,9 +30,7 @@ Project Instructions
     |
     ├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
     │                         generated with `pip freeze > requirements.txt`
-    │
-    |
-    ├── LICENSE  <- LICENSE terms to be included for the use of the source code distribution
+  
 
 
 
